@@ -58,6 +58,8 @@ namespace MFSM.Runtime.Runner
             if (Machine == null)
                 return;
             Context = GetContext();
+            if (Context == null)
+                return;
             Machine.SetContext(Context);
             var initial = GetInitialStateId();
             if (!string.IsNullOrEmpty(initial))
@@ -92,6 +94,16 @@ namespace MFSM.Runtime.Runner
 
         public bool IsInStateOrDescendant(string stateId) =>
             Machine != null && Machine.IsInStateOrDescendant(stateId);
+
+        public void PauseMachine()
+        {
+            if (Machine != null) Machine.Pause();
+        }
+
+        public void ResumeMachine()
+        {
+            if (Machine != null) Machine.Resume();
+        }
 
         #endregion
     }

@@ -226,7 +226,9 @@ namespace MFSM.Runtime.Core
                 path.Add(s);
                 if (!_parentId.TryGetValue(s.Id, out var pid) || string.IsNullOrEmpty(pid))
                     break;
-                s = _states.GetValueOrDefault(pid);
+                if (!_states.TryGetValue(pid, out var parentState))
+                    break;
+                s = parentState;
                 steps++;
             }
 
@@ -248,9 +250,12 @@ namespace MFSM.Runtime.Core
                 var subId = path[^1].InitialSubStateId;
                 if (string.IsNullOrEmpty(subId) || !_states.TryGetValue(subId, out var subState))
                     break;
+                // 仅展开直接子状态，保证路径与注册的父子关系一致
+                if (!_parentId.TryGetValue(subId, out var subParent) || subParent != path[^1].Id)
+                    break;
                 for (var i = 0; i < path.Count; i++)
                     if (path[i].Id == subId)
-                        return path;
+                        return new List<IMFSMState<TContext>>(); // 复合状态环，返回空路径便于调用方抛错
 
                 path.Add(subState);
                 expanded++;
@@ -260,7 +265,7 @@ namespace MFSM.Runtime.Core
         }
 
         public IMFSMState<TContext> GetState(string stateId) =>
-            string.IsNullOrEmpty(stateId) ? null : _states.GetValueOrDefault(stateId);
+            !string.IsNullOrEmpty(stateId) && _states.TryGetValue(stateId, out var s) ? s : null;
 
         /// <summary>当前路径 Id 序列，格式 "Root > ... > Leaf"。</summary>
         public string GetCurrentPathString()

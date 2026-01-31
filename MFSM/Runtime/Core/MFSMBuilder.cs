@@ -60,7 +60,7 @@ namespace MFSM.Runtime.Core
             return this;
         }
 
-        /// <summary>构建机器。若调过 SetRoot 会同步根状态。</summary>
+        /// <summary>构建机器。若调过 SetRoot 会同步根状态；SetRoot 的 id 必须在 Build 前已通过 AddState/AddRootState 注册。</summary>
         public MFSMMachine<TContext> Build()
         {
             if (!string.IsNullOrEmpty(_rootId))

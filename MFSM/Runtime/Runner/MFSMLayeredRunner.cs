@@ -58,7 +58,8 @@ namespace MFSM.Runtime.Runner
                 return;
             var initial = GetInitialStatePerLayer();
             if (initial == null || initial.Count == 0)
-                return;
+                throw new System.InvalidOperationException(
+                    "MFSMLayeredRunner: GetInitialStatePerLayer() must return a non-null, non-empty dictionary with initial state id per layer.");
             Machine.SetContext(Context);
             Machine.Start(Context, initial);
         }
