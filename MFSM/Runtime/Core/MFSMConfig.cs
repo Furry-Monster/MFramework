@@ -1,6 +1,5 @@
 namespace MFSM.Runtime.Core
 {
-    /// <summary>MFSM 配置。保留 Id 见 MFSMConstants.AnyStateId。</summary>
     public static class MFSMConfig
     {
         /// <summary>复合状态展开最大深度（防环）。</summary>

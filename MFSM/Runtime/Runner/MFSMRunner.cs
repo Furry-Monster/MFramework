@@ -12,31 +12,40 @@ namespace MFSM.Runtime.Runner
         protected MFSMMachine<TContext> Machine { get; private set; }
         protected TContext Context { get; private set; }
 
-        /// <summary>是否在 Update 中驱动。</summary>
+        #region IMFSMRunner
+
+        public string CurrentStateId => Machine?.CurrentLeaf?.Id ?? string.Empty;
+        public string GetCurrentPathString() => Machine?.GetCurrentPathString() ?? string.Empty;
+
+        #endregion
+
+        #region 抽象与虚方法
+
+        protected abstract void SetupMachine();
+        protected abstract TContext GetContext();
+
+        /// <summary>非空则从该状态启动，null 则从根启动。</summary>
+        protected virtual string GetInitialStateId() => null;
+
+        #endregion
+
+        #region 配置
+
         protected bool RunInUpdate
         {
             get => runInUpdate;
             set => runInUpdate = value;
         }
 
-        /// <summary>是否在 FixedUpdate 中驱动。</summary>
         protected bool RunInFixedUpdate
         {
             get => runInFixedUpdate;
             set => runInFixedUpdate = value;
         }
 
-        /// <summary>子类在此注册状态与转换。</summary>
-        protected abstract void SetupMachine();
+        #endregion
 
-        /// <summary>子类在此提供每帧上下文。</summary>
-        protected abstract TContext GetContext();
-
-        /// <summary>非空则从该状态启动，null 则从根启动。</summary>
-        protected virtual string GetInitialStateId()
-        {
-            return null;
-        }
+        #region Unity 生命周期
 
         protected virtual void Awake()
         {
@@ -75,25 +84,15 @@ namespace MFSM.Runtime.Runner
             Machine.Update(Time.fixedDeltaTime);
         }
 
-        /// <summary>强制切换到某状态（不检查条件）。</summary>
-        public void TransitionTo(string stateId)
-        {
-            Machine?.TransitionTo(stateId);
-        }
+        #endregion
 
-        /// <summary>当前叶子状态 Id。</summary>
-        public string CurrentStateId => Machine?.CurrentLeaf?.Id;
+        #region 公共 API
 
-        /// <summary>当前路径 Id 序列。</summary>
-        public string GetCurrentPathString()
-        {
-            return Machine?.GetCurrentPathString() ?? string.Empty;
-        }
+        public void TransitionTo(string stateId) => Machine?.TransitionTo(stateId);
 
-        /// <summary>当前是否处于该状态或其子状态。</summary>
-        public bool IsInStateOrDescendant(string stateId)
-        {
-            return Machine != null && Machine.IsInStateOrDescendant(stateId);
-        }
+        public bool IsInStateOrDescendant(string stateId) =>
+            Machine != null && Machine.IsInStateOrDescendant(stateId);
+
+        #endregion
     }
 }

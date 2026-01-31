@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace MFSM.Runtime.Core
 {
-    /// <summary>层次状态机。支持状态树、复合状态、条件转换与任意状态转换。</summary>
+    /// <summary>层次状态机：状态树、复合状态、条件转换、任意状态转换。</summary>
     public sealed class MFSMMachine<TContext> where TContext : IMFSMContext
     {
         private readonly Dictionary<string, IMFSMState<TContext>> _states = new();
@@ -13,31 +13,22 @@ namespace MFSM.Runtime.Core
         private string _rootId;
         private TContext _context;
 
-        /// <summary>当前叶子状态；未启动或路径为空为 null。</summary>
+        #region 属性与事件
+
         public IMFSMState<TContext> CurrentLeaf => _currentPath.Count > 0 ? _currentPath[^1] : null;
-
-        /// <summary>从根到当前叶子的路径。</summary>
         public IReadOnlyList<IMFSMState<TContext>> CurrentPath => _currentPath;
-
-        /// <summary>是否已启动。</summary>
         public bool IsStarted { get; private set; }
-
-        /// <summary>是否暂停（Update 不执行）。</summary>
         public bool IsPaused { get; private set; }
-
-        /// <summary>进入状态时触发，参数为状态 Id。</summary>
         public event Action<string> OnStateEntered;
-
-        /// <summary>离开状态时触发，参数为状态 Id。</summary>
         public event Action<string> OnStateExited;
 
-        /// <summary>设置共享上下文。</summary>
-        public void SetContext(TContext context)
-        {
-            _context = context;
-        }
+        #endregion
 
-        /// <summary>注册状态。同 Id 覆盖。根状态传 parentStateId=null 且 isRoot=true。</summary>
+        #region 上下文与状态注册
+
+        public void SetContext(TContext context) => _context = context;
+
+        /// <summary>注册状态。同 Id 覆盖。根状态 parentStateId=null 且 isRoot=true。</summary>
         public void RegisterState(IMFSMState<TContext> state, string parentStateId = null, bool isRoot = false)
         {
             if (state == null)
@@ -55,7 +46,11 @@ namespace MFSM.Runtime.Core
                 _rootId = state.Id;
         }
 
-        /// <summary>添加转换。from 为当前路径中某状态或其子状态时，condition 为 true 则转换。priority 大者先检查。</summary>
+        #endregion
+
+        #region 转换
+
+        /// <summary>添加转换。from 为当前路径中某状态时 condition 为 true 则转换；priority 大者先检查。</summary>
         public void AddTransition(string fromStateId, string toStateId,
             IMFSMTransitionCondition<TContext> condition = null, int priority = 0)
         {
@@ -70,7 +65,6 @@ namespace MFSM.Runtime.Core
             _transitions.Sort((a, b) => b.Priority.CompareTo(a.Priority));
         }
 
-        /// <summary>使用委托添加转换。</summary>
         public void AddTransition(string fromStateId, string toStateId, Func<TContext, bool> condition,
             int priority = 0)
         {
@@ -78,20 +72,23 @@ namespace MFSM.Runtime.Core
                 condition != null ? new MFSMTransitionCondition<TContext>(condition) : null, priority);
         }
 
-        /// <summary>任意状态转换（如死亡、受击）。priority 建议设大。</summary>
+        /// <summary>任意状态转换（如死亡、受击），priority 建议设大。</summary>
         public void AddAnyTransition(string toStateId,
             IMFSMTransitionCondition<TContext> condition = null, int priority = 0)
         {
             AddTransition(MFSMConstants.AnyStateId, toStateId, condition, priority);
         }
 
-        /// <summary>使用委托添加任意状态转换。</summary>
         public void AddAnyTransition(string toStateId, Func<TContext, bool> condition, int priority = 0)
         {
             AddTransition(MFSMConstants.AnyStateId, toStateId, condition, priority);
         }
 
-        /// <summary>启动并进入指定状态（复合状态会展开到叶子）。</summary>
+        #endregion
+
+        #region 启动与驱动
+
+        /// <summary>启动并进入指定状态；复合状态展开到叶子。</summary>
         public void Start(TContext context, string initialStateId)
         {
             if (string.IsNullOrEmpty(initialStateId))
@@ -115,7 +112,7 @@ namespace MFSM.Runtime.Core
             IsStarted = true;
         }
 
-        /// <summary>从根状态启动（根为复合状态会展开到叶子）。</summary>
+        /// <summary>从根状态启动；根为复合则展开到叶子。</summary>
         public void StartWithRoot(TContext context)
         {
             if (string.IsNullOrEmpty(_rootId))
@@ -124,7 +121,6 @@ namespace MFSM.Runtime.Core
             Start(context, _rootId);
         }
 
-        /// <summary>设置根状态 Id。</summary>
         public void SetRoot(string rootStateId)
         {
             if (string.IsNullOrEmpty(rootStateId))
@@ -134,19 +130,10 @@ namespace MFSM.Runtime.Core
             _rootId = rootStateId;
         }
 
-        /// <summary>暂停。</summary>
-        public void Pause()
-        {
-            IsPaused = true;
-        }
+        public void Pause() => IsPaused = true;
+        public void Resume() => IsPaused = false;
 
-        /// <summary>恢复。</summary>
-        public void Resume()
-        {
-            IsPaused = false;
-        }
-
-        /// <summary>每帧驱动：先检查转换再更新叶子。在 Update 中调用，deltaTime &gt;= 0。</summary>
+        /// <summary>每帧驱动：先检查转换再更新叶子。deltaTime >= 0。</summary>
         public void Update(float deltaTime)
         {
             if (!IsStarted || _currentPath.Count == 0)
@@ -173,15 +160,126 @@ namespace MFSM.Runtime.Core
             leaf.OnUpdate(_context, deltaTime);
         }
 
-        /// <summary>强制切换到目标状态（不检查条件）。</summary>
+        #endregion
+
+        #region 转换与重置
+
         public void TransitionTo(string toStateId)
         {
-            if (!IsStarted)
-                return;
-            if (string.IsNullOrEmpty(toStateId) || !_states.ContainsKey(toStateId))
-                return;
+            if (!IsStarted) return;
+            if (string.IsNullOrEmpty(toStateId) || !_states.ContainsKey(toStateId)) return;
             PerformTransition(toStateId);
         }
+
+        public void Reset()
+        {
+            IsPaused = false;
+            for (var i = _currentPath.Count - 1; i >= 0; i--)
+            {
+                var id = _currentPath[i].Id;
+                _currentPath[i].OnExit(_context);
+                OnStateExited?.Invoke(id);
+            }
+
+            _currentPath.Clear();
+            IsStarted = false;
+        }
+
+        #endregion
+
+        #region 查询
+
+        public bool HasState(string stateId) =>
+            !string.IsNullOrEmpty(stateId) && _states.ContainsKey(stateId);
+
+        public bool IsInState(string stateId)
+        {
+            if (string.IsNullOrEmpty(stateId) || _currentPath.Count == 0)
+                return false;
+            return _currentPath[^1].Id == stateId;
+        }
+
+        public bool IsInStateOrDescendant(string stateId)
+        {
+            if (string.IsNullOrEmpty(stateId) || _currentPath.Count == 0)
+                return false;
+            foreach (var s in _currentPath)
+                if (s.Id == stateId)
+                    return true;
+
+            return false;
+        }
+
+        /// <summary>从根到该状态的路径（不展开复合）。父链有环返回空。</summary>
+        public IReadOnlyList<IMFSMState<TContext>> GetPathToState(string stateId)
+        {
+            if (!_states.TryGetValue(stateId, out var start))
+                return Array.Empty<IMFSMState<TContext>>();
+            var path = new List<IMFSMState<TContext>>();
+            var visited = new HashSet<string>();
+            var s = start;
+            var steps = 0;
+            while (s != null && steps < MFSMConfig.MaxParentChainDepth)
+            {
+                if (!visited.Add(s.Id))
+                    return Array.Empty<IMFSMState<TContext>>();
+                path.Add(s);
+                if (!_parentId.TryGetValue(s.Id, out var pid) || string.IsNullOrEmpty(pid))
+                    break;
+                s = _states.GetValueOrDefault(pid);
+                steps++;
+            }
+
+            path.Reverse();
+            return path;
+        }
+
+        /// <summary>从根到叶子的路径（复合展开到 InitialSubStateId）。防环与过深。</summary>
+        public IReadOnlyList<IMFSMState<TContext>> GetPathToLeaf(string stateId)
+        {
+            var path = new List<IMFSMState<TContext>>();
+            var pathToState = GetPathToState(stateId);
+            if (pathToState.Count == 0)
+                return path;
+            path.AddRange(pathToState);
+            var expanded = 0;
+            while (path.Count > 0 && path[^1].IsCompound && expanded < MFSMConfig.MaxCompoundExpansionDepth)
+            {
+                var subId = path[^1].InitialSubStateId;
+                if (string.IsNullOrEmpty(subId) || !_states.TryGetValue(subId, out var subState))
+                    break;
+                for (var i = 0; i < path.Count; i++)
+                    if (path[i].Id == subId)
+                        return path;
+
+                path.Add(subState);
+                expanded++;
+            }
+
+            return path;
+        }
+
+        public IMFSMState<TContext> GetState(string stateId) =>
+            string.IsNullOrEmpty(stateId) ? null : _states.GetValueOrDefault(stateId);
+
+        /// <summary>当前路径 Id 序列，格式 "Root > ... > Leaf"。</summary>
+        public string GetCurrentPathString()
+        {
+            if (_currentPath.Count == 0)
+                return string.Empty;
+            if (_currentPath.Count == 1)
+                return _currentPath[0].Id;
+            var sb = new System.Text.StringBuilder(_currentPath[0].Id);
+            for (var i = 1; i < _currentPath.Count; i++)
+            {
+                sb.Append(" > ");
+                sb.Append(_currentPath[i].Id);
+            }
+
+            return sb.ToString();
+        }
+
+        #endregion
 
         private void PerformTransition(string toStateId)
         {
@@ -208,121 +306,6 @@ namespace MFSM.Runtime.Core
                 _currentPath.Add(targetPath[i]);
                 OnStateEntered?.Invoke(targetPath[i].Id);
             }
-        }
-
-        /// <summary> 是否已注册指定 Id 的状态。 </summary>
-        public bool HasState(string stateId)
-        {
-            return !string.IsNullOrEmpty(stateId) && _states.ContainsKey(stateId);
-        }
-
-        /// <summary> 当前叶子状态是否等于指定 Id。 </summary>
-        public bool IsInState(string stateId)
-        {
-            if (string.IsNullOrEmpty(stateId) || _currentPath.Count == 0)
-                return false;
-            return _currentPath[^1].Id == stateId;
-        }
-
-        /// <summary>当前路径是否包含该状态或其子状态。</summary>
-        public bool IsInStateOrDescendant(string stateId)
-        {
-            if (string.IsNullOrEmpty(stateId) || _currentPath.Count == 0)
-                return false;
-            foreach (var s in _currentPath)
-                if (s.Id == stateId)
-                    return true;
-
-            return false;
-        }
-
-        /// <summary>从根到该状态的路径（不展开复合）。父链有环则返回空。</summary>
-        public IReadOnlyList<IMFSMState<TContext>> GetPathToState(string stateId)
-        {
-            if (!_states.TryGetValue(stateId, out var start))
-                return Array.Empty<IMFSMState<TContext>>();
-            var path = new List<IMFSMState<TContext>>();
-            var visited = new HashSet<string>();
-            var s = start;
-            var steps = 0;
-            while (s != null && steps < MFSMConfig.MaxParentChainDepth)
-            {
-                if (!visited.Add(s.Id))
-                    return Array.Empty<IMFSMState<TContext>>();
-                path.Add(s);
-                if (!_parentId.TryGetValue(s.Id, out var pid) || string.IsNullOrEmpty(pid))
-                    break;
-                s = _states.GetValueOrDefault(pid);
-                steps++;
-            }
-
-            path.Reverse();
-            return path;
-        }
-
-        /// <summary>从根到叶子的路径（复合状态展开到 InitialSubStateId）。防环与过深。</summary>
-        public IReadOnlyList<IMFSMState<TContext>> GetPathToLeaf(string stateId)
-        {
-            var path = new List<IMFSMState<TContext>>();
-            var pathToState = GetPathToState(stateId);
-            if (pathToState.Count == 0)
-                return path;
-            path.AddRange(pathToState);
-            var expanded = 0;
-            while (path.Count > 0 && path[^1].IsCompound && expanded < MFSMConfig.MaxCompoundExpansionDepth)
-            {
-                var subId = path[^1].InitialSubStateId;
-                if (string.IsNullOrEmpty(subId) || !_states.TryGetValue(subId, out var subState))
-                    break;
-                for (var i = 0; i < path.Count; i++)
-                    if (path[i].Id == subId)
-                        return path;
-
-                path.Add(subState);
-                expanded++;
-            }
-
-            return path;
-        }
-
-        /// <summary>获取已注册状态；不存在返回 null。</summary>
-        public IMFSMState<TContext> GetState(string stateId)
-        {
-            return string.IsNullOrEmpty(stateId)
-                ? null
-                : _states.GetValueOrDefault(stateId);
-        }
-
-        /// <summary>重置：退出当前路径、清空并解除暂停。</summary>
-        public void Reset()
-        {
-            IsPaused = false;
-            for (var i = _currentPath.Count - 1; i >= 0; i--)
-            {
-                var id = _currentPath[i].Id;
-                _currentPath[i].OnExit(_context);
-                OnStateExited?.Invoke(id);
-            }
-
-            _currentPath.Clear();
-            IsStarted = false;
-        }
-
-        /// <summary>当前路径的 Id 序列，如 "Root > Locomotion > Walk"。</summary>
-        public string GetCurrentPathString()
-        {
-            if (_currentPath.Count == 0)
-                return string.Empty;
-            if (_currentPath.Count == 1)
-                return _currentPath[0].Id;
-            var sb = new System.Text.StringBuilder(_currentPath[0].Id);
-            for (var i = 1; i < _currentPath.Count; i++)
-            {
-                sb.Append(" > ");
-                sb.Append(_currentPath[i].Id);
-            }
-
-            return sb.ToString();
         }
 
         private readonly struct MFSMTransitionEntry

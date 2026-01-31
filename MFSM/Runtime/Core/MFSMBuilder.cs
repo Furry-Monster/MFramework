@@ -8,7 +8,6 @@ namespace MFSM.Runtime.Core
         private readonly MFSMMachine<TContext> _machine = new();
         private string _rootId;
 
-        /// <summary>添加根状态。</summary>
         public MFSMBuilder<TContext> AddRootState(IMFSMState<TContext> state)
         {
             if (state == null)
@@ -19,7 +18,6 @@ namespace MFSM.Runtime.Core
             return this;
         }
 
-        /// <summary>添加子状态。</summary>
         public MFSMBuilder<TContext> AddState(IMFSMState<TContext> state, string parentStateId)
         {
             if (state == null)
@@ -28,7 +26,6 @@ namespace MFSM.Runtime.Core
             return this;
         }
 
-        /// <summary>添加转换。</summary>
         public MFSMBuilder<TContext> AddTransition(string fromStateId, string toStateId,
             IMFSMTransitionCondition<TContext> condition = null, int priority = 0)
         {
@@ -36,7 +33,6 @@ namespace MFSM.Runtime.Core
             return this;
         }
 
-        /// <summary>使用委托添加转换。</summary>
         public MFSMBuilder<TContext> AddTransition(string fromStateId, string toStateId,
             Func<TContext, bool> condition, int priority = 0)
         {
@@ -44,7 +40,6 @@ namespace MFSM.Runtime.Core
             return this;
         }
 
-        /// <summary>添加任意状态转换。</summary>
         public MFSMBuilder<TContext> AddAnyTransition(string toStateId,
             IMFSMTransitionCondition<TContext> condition = null, int priority = 0)
         {
@@ -52,7 +47,6 @@ namespace MFSM.Runtime.Core
             return this;
         }
 
-        /// <summary>使用委托添加任意状态转换。</summary>
         public MFSMBuilder<TContext> AddAnyTransition(string toStateId, Func<TContext, bool> condition,
             int priority = 0)
         {
@@ -60,14 +54,13 @@ namespace MFSM.Runtime.Core
             return this;
         }
 
-        /// <summary>设置根状态 Id。</summary>
         public MFSMBuilder<TContext> SetRoot(string rootStateId)
         {
             _rootId = rootStateId;
             return this;
         }
 
-        /// <summary>构建机器；若调过 SetRoot 会同步根状态。</summary>
+        /// <summary>构建机器。若调过 SetRoot 会同步根状态。</summary>
         public MFSMMachine<TContext> Build()
         {
             if (!string.IsNullOrEmpty(_rootId))

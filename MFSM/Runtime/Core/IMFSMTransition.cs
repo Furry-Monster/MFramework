@@ -2,13 +2,12 @@ using System;
 
 namespace MFSM.Runtime.Core
 {
-    /// <summary>转换条件。true 时触发转换。context 由 SetContext 提供，未 Start 可能为 default。</summary>
+    /// <summary>转换条件：Evaluate 为 true 时触发。未 Start 时 context 可能为 default。</summary>
     public interface IMFSMTransitionCondition<in TContext> where TContext : IMFSMContext
     {
         bool Evaluate(TContext context);
     }
 
-    /// <summary>委托形式的转换条件。</summary>
     public sealed class MFSMTransitionCondition<TContext> : IMFSMTransitionCondition<TContext>
         where TContext : IMFSMContext
     {
